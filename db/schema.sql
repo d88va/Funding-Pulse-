@@ -32,7 +32,9 @@ create table if not exists articles (
   published_at timestamptz,
   fetched_at timestamptz not null default now(),
   is_funding_candidate boolean not null default false,
-  processed boolean not null default false
+  processed boolean not null default false,
+  extraction jsonb,                                     -- Gemini's raw output + verification result
+  normalized boolean not null default false             -- true once stage 3 has turned it into deals
 );
 create index if not exists articles_published_idx on articles (published_at);
 

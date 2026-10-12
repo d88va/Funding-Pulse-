@@ -14,3 +14,10 @@ export async function q<T = Record<string, unknown>>(
   const rows = await sql.query(text, params);
   return rows as unknown as T[];
 }
+
+// Columns added after the first schema. Safe to call repeatedly, so a fresh
+// database or an old one both end up with the same shape without a manual step.
+export async function ensureSchema(): Promise<void> {
+  await q("alter table articles add column if not exists extraction jsonb");
+  await q("alter table articles add column if not exists normalized boolean not null default false");
+}
