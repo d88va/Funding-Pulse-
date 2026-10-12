@@ -41,9 +41,18 @@ function amount(d: Deal): string {
   return `${esc(d.amount_text)} &nbsp;<span style="color:${MUTED}">≈ ₹${fmt(Number(d.amount_inr_cr))} cr · $${fmt(Number(d.amount_usd_m))}M</span>`;
 }
 
+// One link per outlet (the first article), with a count when several articles from that outlet covered it.
+// This keeps the email small: Gmail cuts off messages over roughly 102 KB, and Google News links are very long.
 function links(d: Deal, outlet: Map<string, string>): string {
-  return d.source_urls
-    .map((u) => `<a href="${esc(u)}" style="color:${ACCENT};text-decoration:underline">${esc(outlet.get(u) ?? "Source")}</a>`)
+  const groups = new Map<string, { url: string; n: number }>();
+  for (const u of d.source_urls) {
+    const name = outlet.get(u) ?? "Source";
+    const g = groups.get(name);
+    if (g) g.n++;
+    else groups.set(name, { url: u, n: 1 });
+  }
+  return [...groups.entries()]
+    .map(([name, g]) => `<a href="${esc(g.url)}" style="color:${ACCENT};text-decoration:underline">${esc(name)}${g.n > 1 ? ` (${g.n})` : ""}</a>`)
     .join(" &middot; ");
 }
 
