@@ -24,6 +24,8 @@ export default function RunButton() {
       { label: "1. Ingest feeds", status: "running", detail: "" },
       { label: "2. Extract deals with Gemini", status: "running", detail: "waiting" },
       { label: "3. Verify, convert and merge (code)", status: "running", detail: "waiting" },
+      { label: "4. Focus, watchlist and portfolio adjacency", status: "running", detail: "waiting" },
+      { label: "5. Count patterns, narrate, number-check", status: "running", detail: "waiting" },
     ]);
 
     // Stage 1
@@ -51,6 +53,24 @@ export default function RunButton() {
     const ver = await post("/api/verify");
     if (ver.body.error) return fail(2, ver.body.error);
     setStep(2, { status: "done", detail: `${ver.body.dealsBuilt} new deals, ${ver.body.merged} merged duplicates, ${ver.body.verifiedAmounts} amounts verified, ${ver.body.undisclosed} undisclosed` });
+
+    // Stage 4
+    setStep(3, { status: "running", detail: "working" });
+    const rel = await post("/api/relevance");
+    if (rel.body.error) return fail(3, rel.body.error);
+    setStep(3, {
+      status: rel.body.errors?.length ? "error" : "done",
+      detail: `${rel.body.focus} focus deals, ${rel.body.watchlistHits} watchlist hits, ${rel.body.adjacent} adjacent to your portfolio${rel.body.errors?.length ? `, but: ${rel.body.errors[0]}` : ""}`,
+    });
+
+    // Stage 5
+    setStep(4, { status: "running", detail: "working" });
+    const pat = await post("/api/patterns");
+    if (pat.body.error) return fail(4, pat.body.error);
+    setStep(4, {
+      status: "done",
+      detail: `${pat.body.bullets.length} pattern lines (${pat.body.source === "gemini" ? "Gemini text, every number verified" : "plain template: Gemini text failed the number check or was unavailable"})`,
+    });
     setBusy(false);
 
     function fail(i: number, msg: string) {
