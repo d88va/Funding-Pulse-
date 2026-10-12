@@ -140,7 +140,9 @@ export async function buildBrief(): Promise<BuiltBrief> {
     })
     .join("");
 
-  const site = (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "");
+  // NEXT_PUBLIC_SITE_URL if set, otherwise the production domain Vercel provides automatically.
+  const vercelHost = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  const site = (process.env.NEXT_PUBLIC_SITE_URL || (vercelHost ? `https://${vercelHost}` : "")).replace(/\/$/, "");
   const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Funding Pulse</title></head>
 <body style="margin:0;padding:0;background:${PAPER}">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${PAPER}"><tr><td align="center">
