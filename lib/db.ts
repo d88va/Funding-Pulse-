@@ -20,4 +20,6 @@ export async function q<T = Record<string, unknown>>(
 export async function ensureSchema(): Promise<void> {
   await q("alter table articles add column if not exists extraction jsonb");
   await q("alter table articles add column if not exists normalized boolean not null default false");
+  await q("alter table deals add column if not exists adjacency_checked boolean not null default false");
+  await q("alter table briefs add constraint briefs_week_unique unique (week_start)").catch(() => {}); // already there is fine
 }

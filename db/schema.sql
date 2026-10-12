@@ -63,13 +63,14 @@ create table if not exists deals (
   adjacent_to text,
   adjacency_reason text,
   verified_amount boolean not null default false,
+  adjacency_checked boolean not null default false,     -- true once Gemini has judged portfolio adjacency
   unique (company_key, round_stage, announced_week)
 );
 create index if not exists deals_week_idx on deals (announced_week);
 
 create table if not exists briefs (
   id serial primary key,
-  week_start date not null,
+  week_start date not null unique,
   html text not null,
   stats jsonb,
   sent_at timestamptz,
