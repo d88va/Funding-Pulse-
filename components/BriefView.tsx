@@ -108,7 +108,7 @@ export default async function BriefView({ week, status }: { week: string; status
 
       <section>
         <details>
-          <summary>Everything else · {rest.length}</summary>
+          <summary>Rest of the week · {rest.length}</summary>
           <div className="rows">{rest.map((d, i) => <Compact key={i} d={d} />)}</div>
         </details>
         <p className="meta">Nothing is hidden: deals outside your focus are listed here.</p>
