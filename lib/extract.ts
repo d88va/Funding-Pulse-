@@ -2,7 +2,8 @@ import { Type, type Schema } from "@google/genai";
 import { q, ensureSchema } from "./db";
 import { geminiJSON, usage, QuotaError } from "./gemini";
 
-export const ROUNDS = ["Pre-seed", "Seed", "Pre-Series A", "Series A", "Series B", "Series C+", "Debt", "Undisclosed"];
+import { ROUNDS } from "./constants";
+export { ROUNDS };
 
 export type RawDeal = {
   article_id: number;
