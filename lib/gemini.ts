@@ -21,6 +21,18 @@ export function geminiModel(): string {
   return process.env.GEMINI_MODEL || "gemini-3.8-flash";
 }
 
+// Free-tier quotas are per model. If the main model runs out for the day, the next Flash model in this
+// list takes over, so a brief still gets built. Override with GEMINI_FALLBACK_MODELS (comma separated).
+function modelChain(): string[] {
+  const fallbacks = (process.env.GEMINI_FALLBACK_MODELS || "gemini-3.6-flash,gemini-3.5-flash,gemini-3.1-flash-lite")
+    .split(",")
+    .map((m) => m.trim())
+    .filter(Boolean);
+  return [geminiModel(), ...fallbacks.filter((m) => m !== geminiModel())];
+}
+
+const exhausted = new Set<string>(); // models whose daily quota is used up, within this server instance
+
 async function paced() {
   const now = Date.now();
   const wait = Math.max(0, nextSlot - now);
@@ -29,6 +41,21 @@ async function paced() {
 }
 
 export async function geminiJSON<T>(system: string, prompt: string, schema: Schema): Promise<T> {
+  let lastQuota: QuotaError | null = null;
+  for (const model of modelChain()) {
+    if (exhausted.has(model)) continue;
+    try {
+      return await geminiJSONWith<T>(model, system, prompt, schema);
+    } catch (e) {
+      if (!(e instanceof QuotaError)) throw e;
+      exhausted.add(model);
+      lastQuota = e;
+    }
+  }
+  throw lastQuota ?? new QuotaError("All configured Gemini Flash models have used their daily free quota.");
+}
+
+async function geminiJSONWith<T>(model: string, system: string, prompt: string, schema: Schema): Promise<T> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY is not set");
   client ??= new GoogleGenAI({ apiKey });
@@ -39,7 +66,7 @@ export async function geminiJSON<T>(system: string, prompt: string, schema: Sche
       await paced();
       usage.calls++;
       const res = await client.models.generateContent({
-        model: geminiModel(),
+        model,
         contents: prompt,
         config: {
           systemInstruction: system,
@@ -58,7 +85,7 @@ export async function geminiJSON<T>(system: string, prompt: string, schema: Sche
       // Daily quota exhausted: stop immediately and say so plainly.
       if (/PerDay/i.test(msg)) {
         throw new QuotaError(
-          `Gemini daily free quota used up for ${geminiModel()}. It resets at midnight Pacific time, or set GEMINI_MODEL to another Flash model.`
+          `Gemini daily free quota used up for ${model}. It resets at midnight Pacific time.`
         );
       }
 
