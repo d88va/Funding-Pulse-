@@ -22,18 +22,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <header className="masthead">
             <Link href="/" className="brand">Funding Pulse</Link>
             <nav className="nav">
-              <Link href="/">Latest</Link>
-              <Link href="/briefs">Briefs</Link>
+              <Link href="/">Brief</Link>
               <Link href="/deals">Deals</Link>
-              <Link href="/config">Config</Link>
-              <Link href="/runs">Runs</Link>
+              <Link href="/config">Settings</Link>
               <Link href="/about">About</Link>
             </nav>
           </header>
           {children}
           <footer className="foot">
-            Amounts are taken from source articles; trends are counted, not estimated. The brief reports. It never
-            recommends who to contact.
+            <div>
+              Amounts are taken from source articles; trends are counted, not estimated. The brief reports. It never
+              recommends who to contact.
+            </div>
+            <div style={{ marginTop: 8 }}>
+              <Link href="/briefs">Past briefs</Link> &nbsp;·&nbsp; <Link href="/runs">Runs</Link>
+            </div>
           </footer>
         </div>
       </body>

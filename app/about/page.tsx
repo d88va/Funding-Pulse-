@@ -9,7 +9,7 @@ export default async function About() {
   const sources = await q<Source>("select * from sources where active order by id");
   return (
     <main className="about">
-      <p className="kicker">How it works</p>
+      <p className="kicker">About</p>
       <h1>A brief you can check, not just read.</h1>
       <p className="deck">
         Funding Pulse is a Monday-morning digest of Indian startup funding for a venture scout. It exists because skimming two or three
@@ -17,16 +17,14 @@ export default async function About() {
         to a portfolio company, was found in a board meeting.
       </p>
 
-      <h2>The architecture</h2>
-      <p>Six components, five stages from trigger to output. Every cell of this map is real code.</p>
-      <img src="/component-map.jpg" alt="Component map: Aarav, Funding Pulse app, Gemini, news sources, database and email, across trigger, input, context, processing and output" />
+      <h2>How a brief is made</h2>
       <ol>
-        <li><b>Ingest.</b> Fetches every feed, keeps articles from the last 7 days, and picks out likely funding news with keywords.</li>
-        <li><b>Extract.</b> Gemini Flash reads those articles and returns deal fields as strict JSON.</li>
+        <li><b>Ingest.</b> Fetch every feed and keep the last 7 days of articles that look like funding news.</li>
+        <li><b>Extract.</b> Gemini Flash reads them and returns deal fields as strict JSON.</li>
         <li><b>Verify, convert, merge.</b> Plain code checks each amount against the article, converts currency, and merges the same deal reported by several outlets.</li>
-        <li><b>Relevance and adjacency.</b> Code marks focus deals and watchlist hits. Gemini flags deals that sit next to a portfolio company.</li>
+        <li><b>Relevance and adjacency.</b> Code marks your focus deals and watchlist hits. Gemini flags deals next to a portfolio company.</li>
         <li><b>Patterns.</b> Code counts. Gemini describes the counts. Code checks the description.</li>
-        <li><b>Assemble and send.</b> The brief is saved, shown here, and emailed through Resend.</li>
+        <li><b>Send.</b> The brief is saved, shown here, and emailed.</li>
       </ol>
 
       <h2>The Cut: numbers never come from the AI</h2>

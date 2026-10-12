@@ -107,7 +107,7 @@ ever used.
 | `/deals` | Live deal log: search, filters, focus-only toggle, CSV export |
 | `/config` | Edit sectors, stages, watchlist and portfolio. Changes apply to the next brief with no redeploy |
 | `/runs` | Run the pipeline, send a test brief, backfill, per-source health and run history |
-| `/about` | How it works, with the component map |
+| `/about` | How it works, in plain language |
 
 `/config` and `/runs` have **no password by design** (it was decided the pages should be public). To stop abuse,
 runs have a 5-minute cooldown, emails a 5-minute cooldown, and the recipient address is read from the environment, not
