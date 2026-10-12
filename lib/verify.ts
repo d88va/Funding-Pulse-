@@ -21,9 +21,9 @@ const MULTIPLIER: Record<Unit, number> = {
 
 // Reads currency, number and unit out of the verbatim span ("Rs 25 crore", "$5.5M").
 export function parseAmount(span: string): Parsed | null {
-  const currency = /₹|\brs(?=[.\s\d])|\binr\b|\brupees?\b/i.test(span)
+  const currency = /₹|\brs(?=[.\s\d])|\binr(?![a-z])|\brupees?\b/i.test(span)
     ? "INR"
-    : /\$|\busd\b|\bus\s?dollars?\b|\bdollars?\b/i.test(span)
+    : /\$|\busd(?![a-z])|\bus\s?dollars?\b|\bdollars?\b/i.test(span)
       ? "USD"
       : null;
   if (!currency) return null;
