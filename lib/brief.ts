@@ -1,28 +1,10 @@
 import { q, ensureSchema } from "./db";
 import { loadConfig } from "./config";
 import { patternsStage, reportWeek, type Stats } from "./patterns";
+import { loadBriefData, groupLinks, type Deal } from "./briefData";
 
 // Stage 6: assemble the brief. Email-safe HTML: tables, inline styles, no scripts, 600px wide, reads on a phone.
 // The brief reports. It never recommends who to contact or what to tell anyone (the human gate).
-
-type Deal = {
-  company_name: string;
-  round_stage: string;
-  amount_text: string | null;
-  amount_usd_m: string | null;
-  amount_inr_cr: string | null;
-  verified_amount: boolean;
-  lead_investor: string | null;
-  sector: string | null;
-  one_line_summary: string | null;
-  source_urls: string[];
-  relevance: string;
-  watchlist_hit: boolean;
-  adjacent_to: string | null;
-  adjacency_reason: string | null;
-};
-
-type SourceRow = { name: string; last_item_count: number | null; last_error: string | null; last_fetched_at: string | null };
 
 const INK = "#1c1a17", MUTED = "#6f6a60", LINE = "#e2dbcc", ACCENT = "#b4441f", BAD = "#c0261c", PAPER = "#f8f4ec";
 const SERIF = "Georgia, 'Times New Roman', serif";
@@ -41,18 +23,9 @@ function amount(d: Deal): string {
   return `${esc(d.amount_text)} &nbsp;<span style="color:${MUTED}">≈ ₹${fmt(Number(d.amount_inr_cr))} cr · $${fmt(Number(d.amount_usd_m))}M</span>`;
 }
 
-// One link per outlet (the first article), with a count when several articles from that outlet covered it.
-// This keeps the email small: Gmail cuts off messages over roughly 102 KB, and Google News links are very long.
 function links(d: Deal, outlet: Map<string, string>): string {
-  const groups = new Map<string, { url: string; n: number }>();
-  for (const u of d.source_urls) {
-    const name = outlet.get(u) ?? "Source";
-    const g = groups.get(name);
-    if (g) g.n++;
-    else groups.set(name, { url: u, n: 1 });
-  }
-  return [...groups.entries()]
-    .map(([name, g]) => `<a href="${esc(g.url)}" style="color:${ACCENT};text-decoration:underline">${esc(name)}${g.n > 1 ? ` (${g.n})` : ""}</a>`)
+  return groupLinks(d.source_urls, outlet)
+    .map((g) => `<a href="${esc(g.url)}" style="color:${ACCENT};text-decoration:underline">${esc(g.name)}${g.n > 1 ? ` (${g.n})` : ""}</a>`)
     .join(" &middot; ");
 }
 
@@ -100,18 +73,7 @@ export async function buildBrief(): Promise<BuiltBrief> {
   }
   const stats = row.stats!;
 
-  const deals = await q<Deal>(
-    `select company_name, round_stage, amount_text, amount_usd_m, amount_inr_cr, verified_amount, lead_investor, sector,
-            one_line_summary, source_urls, relevance, watchlist_hit, adjacent_to, adjacency_reason
-     from deals where announced_week = $1::date
-     order by amount_usd_m desc nulls last, company_name`,
-    [weekStart]
-  );
-  const sources = await q<SourceRow>("select name, last_item_count, last_error, last_fetched_at from sources where active order by id");
-
-  const urls = [...new Set(deals.flatMap((d) => d.source_urls))];
-  const outletRows = urls.length ? await q<{ url: string; source: string }>("select url, source from articles where url = any($1::text[])", [urls]) : [];
-  const outlet = new Map(outletRows.map((r) => [r.url, r.source.replace(/^Google News:.*/, "Google News")]));
+  const { deals, sources, outlet } = await loadBriefData(weekStart);
 
   const focus = deals.filter((d) => d.relevance === "focus");
   const rest = deals.filter((d) => d.relevance !== "focus");
@@ -156,9 +118,7 @@ export async function buildBrief(): Promise<BuiltBrief> {
 <body style="margin:0;padding:0;background:${PAPER}">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${PAPER}"><tr><td align="center">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background:${PAPER}">
-  <tr><td style="padding:22px 24px 0 24px"><div style="border-top:4px solid ${INK}"></div>
-    <div style="font-family:${SANS};font-size:11px;letter-spacing:2px;text-transform:uppercase;color:${ACCENT};padding-top:18px">Indian startup funding</div>
-    <div style="font-family:${SERIF};font-size:30px;line-height:1.15;color:${INK};padding-top:6px">Funding Pulse &mdash; week of ${weekLabel(weekStart)}</div>
+  <tr><td style="padding:22px 24px 0 24px"><div style="font-family:${SERIF};font-size:30px;line-height:1.15;color:${INK};padding-top:12px">Funding Pulse &mdash; week of ${weekLabel(weekStart)}</div>
     <div style="font-family:${SERIF};font-size:17px;color:${MUTED};padding-top:10px">${esc(headline)}</div></td></tr>
   ${section("⚠ Watchlist &amp; portfolio alerts", alertsBody)}
   ${section("Your focus deals", focusBody, `Sectors: ${esc(cfg.sectors.join(", "))} · Stages: ${esc(cfg.stages.join(", "))}`)}
