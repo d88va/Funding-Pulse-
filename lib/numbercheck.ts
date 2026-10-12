@@ -17,7 +17,11 @@ export function statsNumbers(stats: unknown): Set<number> {
 }
 
 // Spelled-out numbers can't be checked as digits, so they are not allowed either.
-const NUMBER_WORDS = /\b(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|dozen|twice|double|triple|half|hundred|thousand)\b/i;
+const NUMBER_WORDS =
+  /\b(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|dozen|twice|doubl\w*|tripl\w*|quadrupl\w*|halv\w*|half|hundred|thousand)\b/i;
+
+// With no earlier weeks on record, any claim of movement would be invented, so trend words are refused.
+const TREND_WORDS = /\b(rose|rise|risen|fell|fall|grew|growth|surged?|jumped?|dropped?|increased?|decreased?|declined?|up from|down from|compared with|versus|vs\.?)\b/i;
 
 export type NumberCheck = { ok: boolean; bad: string[] };
 
@@ -30,5 +34,8 @@ export function checkNumbers(text: string, stats: unknown): NumberCheck {
   }
   const word = text.match(NUMBER_WORDS);
   if (word) bad.push(word[0]);
+  const baseline = (stats as { sector_change_vs_prev_weeks?: { baseline?: boolean } } | null)?.sector_change_vs_prev_weeks?.baseline;
+  const trend = baseline ? text.match(TREND_WORDS) : null;
+  if (trend) bad.push(`${trend[0]} (no earlier weeks to compare with)`);
   return { ok: bad.length === 0, bad };
 }
