@@ -48,12 +48,26 @@ adjacency. Most deals should have adjacent_to = null.
 Return one item per deal_id.`;
 }
 
+// "StockSathi (sample)" and "StockSathi" are the same portfolio company; Gemini often drops the bracket.
+const plain = (s: string) => s.toLowerCase().replace(/\(.*?\)/g, "").replace(/[^a-z0-9]+/g, "");
+
+function matchPortfolio(answer: string | null | undefined, portfolio: PortfolioCompany[]): string | null {
+  const a = plain(answer ?? "");
+  if (!a) return null;
+  const hit = portfolio.find((p) => {
+    const n = plain(p.name);
+    return n === a || (Math.min(n.length, a.length) >= 5 && (n.startsWith(a) || a.startsWith(n)));
+  });
+  return hit ? hit.name : null;
+}
+
 export type RelevanceResult = {
   deals: number;
   focus: number;
   watchlistHits: number;
   adjacencyChecked: number;
   adjacent: number;
+  unmatched: string[]; // Gemini named something that is not in the portfolio list; shown, never saved
   geminiCalls: number;
   errors: string[];
 };
@@ -67,6 +81,7 @@ export async function relevanceStage(opts: { redo?: boolean } = {}): Promise<Rel
   const cfg = await loadConfig();
   const callsBefore = usage.calls;
   const errors: string[] = [];
+  const unmatched: string[] = [];
 
   if (opts.redo) await q("update deals set adjacency_checked = false, adjacent_to = null, adjacency_reason = null");
 
@@ -98,7 +113,6 @@ export async function relevanceStage(opts: { redo?: boolean } = {}): Promise<Rel
     await q("update deals set adjacency_checked = true where not adjacency_checked");
     checked = todo.length;
   } else {
-    const names = new Map(cfg.portfolio.map((p) => [p.name.toLowerCase(), p.name]));
     for (let i = 0; i < todo.length; i += CHUNK) {
       const chunk = todo.slice(i, i + CHUNK);
       try {
@@ -113,8 +127,9 @@ export async function relevanceStage(opts: { redo?: boolean } = {}): Promise<Rel
         const byId = new Map((out.items ?? []).map((it) => [it.deal_id, it]));
         const rows = chunk.map((d) => {
           const it = byId.get(d.id);
-          const match = it?.adjacent_to ? names.get(it.adjacent_to.trim().toLowerCase()) : undefined; // must be a real portfolio name
-          return { id: d.id, adj: match ?? null, why: match ? (it?.reason ?? "").trim() || null : null };
+          const match = matchPortfolio(it?.adjacent_to, cfg.portfolio); // must be a real portfolio company
+          if (it?.adjacent_to && !match) unmatched.push(`${d.company_name} -> ${it.adjacent_to}`);
+          return { id: d.id, adj: match, why: match ? (it?.reason ?? "").trim() || null : null };
         });
         await q(
           `update deals d set adjacent_to = x.a, adjacency_reason = x.r, adjacency_checked = true
@@ -141,6 +156,7 @@ export async function relevanceStage(opts: { redo?: boolean } = {}): Promise<Rel
     watchlistHits: rel.filter((r) => r.watch).length,
     adjacencyChecked: checked,
     adjacent: Number(t.adjacent),
+    unmatched,
     geminiCalls,
     errors,
   };
