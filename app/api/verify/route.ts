@@ -8,9 +8,10 @@ export const maxDuration = 120;
 // Stage 3. Pure code: verifies amounts against the article text, converts currency, merges duplicates.
 export async function POST(req: Request) {
   try {
-    // ?redo=1 re-checks every article from scratch (safe: merging is idempotent). Used after fixing a parsing rule.
+    // ?redo=1 rebuilds all deals from the stored extractions. Used after fixing a parsing rule.
     if (new URL(req.url).searchParams.get("redo") === "1") {
       await ensureSchema();
+      await q("delete from deals"); // deals are rebuilt entirely from the stored extractions
       await q("update articles set normalized = false where extraction is not null");
     }
     return NextResponse.json(await verifyStage());

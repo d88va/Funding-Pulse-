@@ -13,6 +13,7 @@ type ArticleRow = {
 
 type DealRow = {
   id: number;
+  company_key: string;
   round_stage: string;
   verified_amount: boolean;
   source_urls: string[];
@@ -61,7 +62,16 @@ export async function verifyStage(): Promise<VerifyResult> {
       const round = d.round_stage && ROUNDS.includes(d.round_stage) ? d.round_stage : "Undisclosed";
       const others = (d.other_investors ?? []).map((s) => s.trim()).filter(Boolean);
 
-      const existing = await q<DealRow>("select * from deals where company_key = $1 and announced_week = $2", [key, week]);
+      // Same company within a week either side counts as the same story (a 7-day window can straddle a Monday).
+      // Names that are one and the same plus a suffix ("Tessolve" / "Tessolve Semiconductor") also match.
+      const nearby = await q<DealRow>(
+        "select * from deals where announced_week between $1::date - 7 and $1::date + 7",
+        [week]
+      );
+      const existing = nearby.filter((e) => {
+        const [short, long] = e.company_key.length <= key.length ? [e.company_key, key] : [key, e.company_key];
+        return short === long || (short.length >= 6 && long.startsWith(short));
+      });
       const match =
         existing.find((e) => e.round_stage === round) ??
         (round === "Undisclosed" ? existing[0] : existing.find((e) => e.round_stage === "Undisclosed"));
