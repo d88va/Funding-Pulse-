@@ -40,9 +40,13 @@ function adjacencySystem(portfolio: PortfolioCompany[]): string {
 Portfolio:
 ${portfolio.map((p) => `- ${p.name}: ${p.description}`).join("\n")}
 
-For each deal, decide whether the funded company directly competes with, or sits right next to, one portfolio company
-(same customers and same problem, or a clear substitute or complement). Be conservative: a shared sector alone is NOT
-adjacency. Most deals should have adjacent_to = null.
+For each deal, decide whether the funded company directly competes with, or sits right next to, one portfolio company:
+it must serve the same customers AND solve the same problem, or be a clear substitute.
+Strict rules:
+- Judge ONLY from the summary text given, or from facts about the company you are certain of. If the summary does not say what the company does and you are not certain, adjacent_to = null.
+- Never infer what a company does from the names of its investors, its sector label, or its funding round.
+- A shared sector, or a loosely related industry (for example EV charging versus solar financing), is NOT adjacency.
+- Being wrong is worse than missing one. Most deals should have adjacent_to = null.
 - adjacent_to: the exact portfolio company name, or null.
 - reason: one plain factual sentence saying why, only when adjacent_to is set. No numbers, no advice, no suggestion to contact anyone.
 Return one item per deal_id.`;
