@@ -18,6 +18,15 @@ export default function RunButton() {
     setSteps((prev) => prev.map((p, j) => (j === i ? { ...p, ...s } : p)));
   }
 
+  async function sendTest() {
+    setBusy(true);
+    setSteps([{ label: "Send test brief", status: "running", detail: "" }]);
+    const r = await post("/api/brief?resend=1");
+    if (r.body.error) setStep(0, { status: "error", detail: r.body.error });
+    else setStep(0, { status: String(r.body.status).startsWith("sent") ? "done" : "error", detail: `${r.body.status} to ${r.body.to}` });
+    setBusy(false);
+  }
+
   async function run(days: number) {
     setBusy(true);
     setSteps([
@@ -26,6 +35,7 @@ export default function RunButton() {
       { label: "3. Verify, convert and merge (code)", status: "running", detail: "waiting" },
       { label: "4. Focus, watchlist and portfolio adjacency", status: "running", detail: "waiting" },
       { label: "5. Count patterns, narrate, number-check", status: "running", detail: "waiting" },
+      { label: "6. Assemble the brief", status: "running", detail: "waiting" },
     ]);
 
     // Stage 1
@@ -71,6 +81,12 @@ export default function RunButton() {
       status: "done",
       detail: `${pat.body.bullets.length} pattern lines (${pat.body.source === "gemini" ? "Gemini text, every number verified" : "plain template: Gemini text failed the number check or was unavailable"})`,
     });
+
+    // Stage 6 (builds and saves the brief; use "Send test brief" to email it)
+    setStep(5, { status: "running", detail: "working" });
+    const br = await post("/api/brief");
+    if (br.body.error) return fail(5, br.body.error);
+    setStep(5, { status: "done", detail: `brief for the week of ${br.body.weekStart} saved (${Math.round(br.body.htmlBytes / 1024)} KB)` });
     setBusy(false);
 
     function fail(i: number, msg: string) {
@@ -84,6 +100,8 @@ export default function RunButton() {
       <div className="actions">
         <button disabled={busy} onClick={() => run(7)}>{busy ? "Running…" : "Run pipeline now (7 days)"}</button>
         <button className="ghost" disabled={busy} onClick={() => run(28)}>Backfill 4 weeks</button>
+        <button className="ghost" disabled={busy} onClick={sendTest}>Send test brief</button>
+        <a href="/api/brief" target="_blank" rel="noreferrer"><button type="button" className="ghost">Preview brief</button></a>
       </div>
       {steps.length > 0 && (
         <ul className="srcs">
