@@ -2,40 +2,82 @@
 
 import { useState } from "react";
 
-type Result = {
-  error?: string;
-  totals?: { articles: number; added: number; candidates: number };
-  sources?: { name: string; articles: number; added: number; candidates: number; error: string | null }[];
-};
+type Step = { label: string; status: "running" | "done" | "skipped" | "error"; detail: string };
+
+async function post(url: string) {
+  const res = await fetch(url, { method: "POST" });
+  const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+  return { status: res.status, body };
+}
 
 export default function RunButton() {
-  const [busy, setBusy] = useState<string | null>(null);
-  const [result, setResult] = useState<Result | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [steps, setSteps] = useState<Step[]>([]);
+
+  function setStep(i: number, s: Partial<Step>) {
+    setSteps((prev) => prev.map((p, j) => (j === i ? { ...p, ...s } : p)));
+  }
 
   async function run(days: number) {
-    setBusy(`${days}d`);
-    setResult(null);
-    try {
-      const res = await fetch(`/api/ingest?days=${days}`, { method: "POST" });
-      setResult(await res.json());
-    } catch (e) {
-      setResult({ error: e instanceof Error ? e.message : "Request failed" });
+    setBusy(true);
+    setSteps([
+      { label: "1. Ingest feeds", status: "running", detail: "" },
+      { label: "2. Extract deals with Gemini", status: "running", detail: "waiting" },
+      { label: "3. Verify, convert and merge (code)", status: "running", detail: "waiting" },
+    ]);
+
+    // Stage 1
+    const ing = await post(`/api/ingest?days=${days}`);
+    if (ing.status === 429) setStep(0, { status: "skipped", detail: "ran recently, using the articles already stored" });
+    else if (ing.body.error) return fail(0, ing.body.error);
+    else setStep(0, { status: "done", detail: `${ing.body.totals.articles} articles, ${ing.body.totals.added} new, ${ing.body.totals.candidates} look like funding news` });
+
+    // Stage 2: repeat until nothing is left (each call stops before the time limit)
+    let totalCalls = 0, totalDeals = 0, remaining = 1, stalls = 0;
+    while (remaining > 0 && stalls < 3) {
+      setStep(1, { status: "running", detail: `${totalCalls} Gemini calls so far, ${totalDeals} deals found` });
+      const ex = await post("/api/extract");
+      if (ex.body.error) return fail(1, ex.body.error);
+      totalCalls += ex.body.geminiCalls;
+      totalDeals += ex.body.dealsFound;
+      stalls = ex.body.processed === 0 ? stalls + 1 : 0;
+      remaining = ex.body.remaining;
+      if (ex.body.errors?.length && ex.body.processed === 0) return fail(1, ex.body.errors[0]);
     }
-    setBusy(null);
+    setStep(1, { status: remaining > 0 ? "error" : "done", detail: `${totalCalls} Gemini calls, ${totalDeals} deals found${remaining > 0 ? `, ${remaining} articles still waiting (press the button again)` : ""}` });
+
+    // Stage 3
+    setStep(2, { status: "running", detail: "working" });
+    const ver = await post("/api/verify");
+    if (ver.body.error) return fail(2, ver.body.error);
+    setStep(2, { status: "done", detail: `${ver.body.dealsBuilt} new deals, ${ver.body.merged} merged duplicates, ${ver.body.verifiedAmounts} amounts verified, ${ver.body.undisclosed} undisclosed` });
+    setBusy(false);
+
+    function fail(i: number, msg: string) {
+      setStep(i, { status: "error", detail: msg });
+      setBusy(false);
+    }
   }
 
   return (
     <div>
       <div className="actions">
-        <button disabled={!!busy} onClick={() => run(7)}>{busy === "7d" ? "Fetching…" : "Fetch last 7 days"}</button>
-        <button className="ghost" disabled={!!busy} onClick={() => run(28)}>{busy === "28d" ? "Fetching…" : "Backfill 4 weeks"}</button>
+        <button disabled={busy} onClick={() => run(7)}>{busy ? "Running…" : "Run pipeline now (7 days)"}</button>
+        <button className="ghost" disabled={busy} onClick={() => run(28)}>Backfill 4 weeks</button>
       </div>
-      {result?.error && <p className="bad">{result.error}</p>}
-      {result?.totals && (
-        <p>
-          Stage 1 done: <b>{result.totals.articles}</b> articles in window, <b>{result.totals.added}</b> new,{" "}
-          <b>{result.totals.candidates}</b> look like funding news. Reload the page to see source health.
-        </p>
+      {steps.length > 0 && (
+        <ul className="srcs">
+          {steps.map((s) => (
+            <li key={s.label} className="src" style={{ gridTemplateColumns: "1fr" }}>
+              <span>
+                <b>{s.label}</b>{" "}
+                <span className={s.status === "error" ? "bad" : s.status === "done" ? "ok" : ""}>
+                  {s.status === "running" ? "…" : s.status === "done" ? "✓" : s.status === "skipped" ? "–" : "✗"} {s.detail}
+                </span>
+              </span>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
