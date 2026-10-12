@@ -69,8 +69,9 @@ export async function verifyStage(): Promise<VerifyResult> {
         [week]
       );
       const existing = nearby.filter((e) => {
-        const [short, long] = e.company_key.length <= key.length ? [e.company_key, key] : [key, e.company_key];
-        return short === long || (short.length >= 6 && long.startsWith(short));
+        const shorter = e.company_key.length <= key.length ? e.company_key : key;
+        const longer = e.company_key.length <= key.length ? key : e.company_key;
+        return shorter === longer || (shorter.length >= 6 && longer.startsWith(shorter));
       });
       const match =
         existing.find((e) => e.round_stage === round) ??
