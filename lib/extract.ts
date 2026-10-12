@@ -1,6 +1,6 @@
 import { Type, type Schema } from "@google/genai";
 import { q, ensureSchema } from "./db";
-import { geminiJSON, usage } from "./gemini";
+import { geminiJSON, usage, QuotaError } from "./gemini";
 
 export const ROUNDS = ["Pre-seed", "Seed", "Pre-Series A", "Series A", "Series B", "Series C+", "Debt", "Undisclosed"];
 
@@ -50,8 +50,8 @@ const schema: Schema = {
   required: ["items"],
 };
 
-const BATCH = 9; // articles per Gemini call, to stay under free-tier rate limits
-const CONCURRENCY = 3;
+const BATCH = 20; // articles per Gemini call: fewer calls keeps us inside free-tier daily limits
+const CONCURRENCY = 2; // requests are paced globally in gemini.ts, so this only overlaps waiting
 
 function systemPrompt(sectors: string[]): string {
   return `You extract startup funding deals from Indian news headlines and snippets.
@@ -110,9 +110,10 @@ export async function extractStage(budgetMs = 230_000): Promise<ExtractResult> {
   let dealsFound = 0;
   const errors: string[] = [];
   let next = 0;
+  let stop = false;
 
   async function worker() {
-    while (next < batches.length && Date.now() - started < budgetMs) {
+    while (!stop && next < batches.length && Date.now() - started < budgetMs) {
       const rows = batches[next++];
       try {
         const out = await geminiJSON<{ items: RawDeal[] }>(system, batchPrompt(rows), schema);
@@ -125,6 +126,7 @@ export async function extractStage(budgetMs = 230_000): Promise<ExtractResult> {
           processed++;
         }
       } catch (e) {
+        if (e instanceof QuotaError) stop = true; // no point trying more batches today
         errors.push(e instanceof Error ? e.message : String(e)); // rows stay unprocessed and are retried next call
       }
     }
