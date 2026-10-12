@@ -67,6 +67,7 @@ export default async function BriefView({ week, status }: { week: string; status
 
   const alerts = deals.filter((d) => d.watchlist_hit || d.adjacent_to);
   const focus = deals.filter((d) => d.relevance === "focus");
+  const focusOnly = focus.filter((d) => !d.watchlist_hit && !d.adjacent_to); // alerted deals are shown once, above
   const rest = deals.filter((d) => d.relevance !== "focus");
 
   return (
@@ -89,9 +90,12 @@ export default async function BriefView({ week, status }: { week: string; status
 
       <section>
         <h2>Your focus · {focus.length}</h2>
-        {focus.length ? (
-          <div className="rows">{focus.map((d, i) => <DealRow key={i} d={d} outlet={outlet} />)}</div>
-        ) : (
+        {focus.length > focusOnly.length && (
+          <p className="meta">{focus.length - focusOnly.length} of these are in the alerts above.</p>
+        )}
+        {focusOnly.length ? (
+          <div className="rows">{focusOnly.map((d, i) => <DealRow key={i} d={d} outlet={outlet} />)}</div>
+        ) : focus.length ? null : (
           <p className="quiet">No deals matched your sectors and stages this week. Everything we found is below.</p>
         )}
       </section>
