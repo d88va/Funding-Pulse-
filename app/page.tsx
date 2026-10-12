@@ -1,6 +1,6 @@
 import { q } from "@/lib/db";
 import { ensureSources, type Source } from "@/lib/sources";
-import { fmtIST } from "@/lib/format";
+import { fmtIST, weekOfLabel } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -11,46 +11,59 @@ export default async function Home() {
     `select count(*) as articles, count(*) filter (where is_funding_candidate) as candidates
      from articles where published_at > now() - interval '7 days'`
   );
-  const [lastRun] = await q<{ finished_at: string | null; status: string }>(
-    "select finished_at, status from runs order by started_at desc limit 1"
+  const [lastRun] = await q<{ finished_at: string | null }>(
+    "select finished_at from runs where finished_at is not null order by started_at desc limit 1"
   );
-  const healthy = sources.filter((s) => (s.last_item_count ?? 0) > 0 && !s.last_error).length;
+
+  const isDown = (s: Source) => !!s.last_error || s.last_item_count === 0;
+  const healthy = sources.filter((s) => s.last_fetched_at && !isDown(s)).length;
+  const max = Math.max(1, ...sources.map((s) => s.last_item_count ?? 0));
 
   return (
     <main>
-      <h1>Indian startup funding, counted not guessed.</h1>
-      <p className="lede">
-        A weekly brief built from live news. The first brief appears here once the extraction stages are
-        switched on. For now this page shows the live ingest.
+      <p className="kicker">Week of {weekOfLabel()} · Indian startup funding</p>
+      <h1>
+        Every deal, <em>counted</em> not guessed.
+      </h1>
+      <p className="deck">
+        A Monday brief for venture scouts, built from live news. Amounts come from the source article. Trends are
+        counted in code. Nothing is hidden.
       </p>
 
-      <div className="strip">
-        <span>Last run <b>{fmtIST(lastRun?.finished_at)}</b></span>
-        <span>Articles (7 days) <b>{Number(counts.articles)}</b></span>
-        <span>Funding candidates <b>{Number(counts.candidates)}</b></span>
-        <span>Sources healthy <b>{healthy}/{sources.length}</b></span>
+      <section className="figures" aria-label="This week at a glance">
+        <div className="fig"><span className="n">{Number(counts.articles)}</span><span className="l">Articles read</span></div>
+        <div className="fig"><span className="n">{Number(counts.candidates)}</span><span className="l">Funding candidates</span></div>
+        <div className="fig">
+          <span className={`n ${healthy < sources.length ? "bad" : ""}`}>{healthy}/{sources.length}</span>
+          <span className="l">Sources healthy</span>
+        </div>
+        <div className="fig"><span className="n" style={{ fontSize: 22, lineHeight: 1.3 }}>{fmtIST(lastRun?.finished_at)}</span><span className="l">Last run, IST</span></div>
+      </section>
+
+      <div className="note">
+        <b>The first brief is on its way</b>
+        <p>
+          The feeds below are live. Once deal extraction is switched on, this page becomes the brief: your focus
+          deals, watchlist alerts and the week’s patterns, each with a link to its source.
+        </p>
       </div>
 
-      <h2>Sources checked</h2>
-      <table>
-        <thead>
-          <tr><th>Source</th><th>Articles</th><th>Status</th></tr>
-        </thead>
-        <tbody>
-          {sources.map((s) => {
-            const bad = !!s.last_error || s.last_item_count === 0;
-            return (
-              <tr key={s.id}>
-                <td>{s.name}</td>
-                <td className={bad ? "bad" : ""}>{s.last_item_count ?? "–"}</td>
-                <td className={bad ? "bad" : "ok"}>
-                  {s.last_fetched_at ? (s.last_error ? `failed: ${s.last_error}` : bad ? "returned 0" : "ok") : "not run yet"}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <h2>Sources checked this week</h2>
+      <p className="sub">Articles each source returned. A source that returns nothing is flagged in red.</p>
+      <ul className="srcs">
+        {sources.map((s) => {
+          const down = isDown(s);
+          const n = s.last_item_count ?? 0;
+          return (
+            <li key={s.id} className={`src ${down ? "down" : ""}`}>
+              <span>{s.name}</span>
+              <span className="track"><span className="fill" style={{ width: `${Math.max(down ? 100 : 2, (n / max) * 100)}%` }} /></span>
+              <span className="ct">{s.last_fetched_at ? n : "–"}</span>
+              {s.last_error && <span className="why">Failed: {s.last_error}</span>}
+            </li>
+          );
+        })}
+      </ul>
     </main>
   );
 }
